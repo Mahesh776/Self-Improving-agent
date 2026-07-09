@@ -24,7 +24,7 @@ export default function Sidebar() {
     return (
       <div className="sidebar collapsed">
         <button className="sidebar-toggle" onClick={() => setCollapsed(false)}>
-          >
+          {'>'}
         </button>
       </div>
     );
@@ -36,7 +36,7 @@ export default function Sidebar() {
         <div className="sidebar-header">
           <span>Skills</span>
           <button className="sidebar-toggle" onClick={() => setCollapsed(true)}>
-            <
+            {'<'}
           </button>
         </div>
         <div className="sidebar-content">
