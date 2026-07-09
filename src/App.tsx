@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { useStore } from './state/store';
-import { getModels, getTools, getProgress } from './api/client';
+import { getModels, getTools, getProgress, getChatHistory } from './api/client';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import { ToastProvider } from './components/Toast';
 import Header from './components/Header';
@@ -9,22 +9,33 @@ import ChatArea from './components/ChatArea';
 import SettingsModal from './components/SettingsModal';
 
 function AppContent() {
-  const { setModels, setTools, setProgress, setModel, settingsOpen } = useStore();
+  const { setModels, setTools, setProgress, setModel, settingsOpen, addMessage } = useStore();
   useKeyboardShortcuts();
 
   useEffect(() => {
     async function init() {
       try {
-        const [modelsRes, toolsRes, progressRes] = await Promise.all([
+        const [modelsRes, toolsRes, progressRes, historyRes] = await Promise.all([
           getModels(),
           getTools(),
           getProgress(),
+          getChatHistory(),
         ]);
         setModels(modelsRes.models);
         setTools(toolsRes.tools);
         setProgress(progressRes);
         if (modelsRes.models.length > 0) {
           setModel(modelsRes.models[0].id);
+        }
+        if (historyRes.messages && historyRes.messages.length > 0) {
+          for (const msg of historyRes.messages) {
+            addMessage({
+              role: msg.role as 'user' | 'assistant' | 'tool',
+              content: msg.content || '',
+              tool_calls: msg.tool_calls,
+              tool_call_id: msg.tool_call_id,
+            });
+          }
         }
       } catch (err) {
         console.error('Failed to load config:', err);

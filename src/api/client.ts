@@ -334,3 +334,18 @@ export async function getForgeJob(jobId: string) {
 export async function getForgeJobs() {
   return fetchJSON('/forge/jobs');
 }
+
+export async function getChatHistory(): Promise<{ messages: ChatMessage[] }> {
+  return fetchJSON('/chat/history');
+}
+
+export async function saveChatHistory(messages: ChatMessage[]) {
+  return fetchJSON('/chat/history', {
+    method: 'POST',
+    body: JSON.stringify({ messages }),
+  });
+}
+
+export async function clearChatHistory() {
+  return fetchJSON('/chat/history', { method: 'DELETE' });
+}

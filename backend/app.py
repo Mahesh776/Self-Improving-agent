@@ -58,6 +58,7 @@ from gamification import (
 )
 from prompts import get_prompt, load_prompts_config, save_prompts_config, get_all_defaults
 from secrets import apply_secrets_to_environ, secrets_status, set_secret, clear_secret, load_secrets
+from chat_history import get_history, add_message, add_messages, clear_history, get_recent_for_context
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -385,6 +386,10 @@ async def chat(request: Request):
 
         yield f"data: {json.dumps({'type': 'done'})}\n\n"
 
+        add_message("user", messages[-1]["content"] if messages else "")
+        if content_acc:
+            add_message("assistant", content_acc)
+
     increment_chat_count()
     xp_result = add_chat_xp()
 
@@ -604,6 +609,22 @@ async def forge_progress_stream(job_id: str):
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "Connection": "keep-alive"},
     )
+
+@app.get("/api/chat/history")
+async def get_chat_history():
+    return {"messages": get_history()}
+
+@app.post("/api/chat/history")
+async def save_chat_history(request: Request):
+    body = await request.json()
+    messages = body.get("messages", [])
+    add_messages(messages)
+    return {"status": "ok"}
+
+@app.delete("/api/chat/history")
+async def delete_chat_history():
+    clear_history()
+    return {"status": "cleared"}
 
 @app.get("/api/persona")
 async def get_persona():

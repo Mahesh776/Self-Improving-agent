@@ -71,5 +71,10 @@ export const useStore = create<ChatState>((set, get) => ({
   setSettingsOpen: (open) => set({ settingsOpen: open }),
   setSettingsTab: (tab) => set({ settingsTab: tab }),
   setSidebarCollapsed: (c) => set({ sidebarCollapsed: c }),
-  clearChat: () => set({ messages: [], selectedToolPlan: null, buildPhase: null, buildStatus: null }),
+  clearChat: () => {
+    set({ messages: [], selectedToolPlan: null, buildPhase: null, buildStatus: null });
+    import('../api/client').then(({ clearChatHistory }) => {
+      clearChatHistory().catch(() => {});
+    });
+  },
 }));
