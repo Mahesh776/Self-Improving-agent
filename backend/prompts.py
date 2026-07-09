@@ -52,32 +52,30 @@ Example response (ONLY the JSON, nothing else):
 DEFAULT_FORGE_REVISE = """Revise the tool plan based on user feedback.
 Keep the good parts and address the concerns raised."""
 
-DEFAULT_FORGE_CODE = """Generate Python code for a tool. Return EXACTLY 3 code blocks:
+DEFAULT_FORGE_CODE = """Generate a Python tool. Return ONLY code blocks, no explanation.
 
-BLOCK 1 - Main code (must have def run(arguments: dict) -> dict):
 ```python
 import json
+
 def run(arguments: dict) -> dict:
-    # your code
+    # implement the tool
     return {"result": "output"}
 ```
 
-BLOCK 2 - Test code:
 ```python
 def test_run():
     result = run({})
     assert isinstance(result, dict)
-    print("Test passed!")
+    print("OK")
 if __name__ == "__main__":
     test_run()
 ```
 
-BLOCK 3 - Manifest:
 ```json
 {"name": "tool_name", "description": "what it does", "parameters": {"type": "object", "properties": {}}, "kind": "headless"}
 ```
 
-IMPORTANT: The main code MUST have a function named exactly `run`. Return ONLY the 3 code blocks, nothing else."""
+The run() function is the entry point. It receives arguments as a dict and must return a dict with a "result" key."""
 
 DEFAULT_FORGE_TEST = """Generate test code for this tool.
 Test the main functionality and edge cases.

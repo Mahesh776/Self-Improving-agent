@@ -63,39 +63,13 @@ def parse_tool_plan(text: str) -> dict | None:
 
 async def generate_tool_code(plan: dict, model: str) -> AsyncIterator[str]:
     system = get_prompt("forge_code")
-    user_msg = f"""Generate complete Python code for this tool:
-
-Name: {plan.get('name', 'unnamed')}
+    user_msg = f"""Tool: {plan.get('name', 'unnamed')}
 Description: {plan.get('description', '')}
 Parameters: {json.dumps(plan.get('parameters', {}), indent=2)}
-Packages needed: {plan.get('packages', [])}
+Packages: {plan.get('packages', [])}
 Approach: {plan.get('approach', '')}
 
-Generate:
-1. The main tool code with a run(arguments: dict) -> dict function
-2. Test code
-3. A manifest JSON
-
-Format your response as:
-```python
-# TOOL CODE
-<code>
-```
-
-```python
-# TEST CODE
-<test code>
-```
-
-```json
-# MANIFEST
-{{
-  "name": "...",
-  "description": "...",
-  "parameters": {{...}},
-  "kind": "headless"
-}}
-```"""
+Generate the Python code for this tool. Return ONLY code blocks."""
 
     messages = [
         {"role": "system", "content": system},
