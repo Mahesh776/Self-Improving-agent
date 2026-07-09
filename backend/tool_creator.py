@@ -15,12 +15,7 @@ async def plan_tool(user_request: str, existing_tools: list[dict], model: str) -
 Existing tools:
 {tools_summary}
 
-Respond with a JSON object containing:
-- name: tool name (snake_case)
-- description: what it does
-- parameters: JSON Schema for inputs
-- packages: list of pip packages needed (empty list if none)
-- approach: implementation description"""
+Respond with ONLY a JSON object. No markdown, no explanation. Just the JSON."""
 
     messages = [
         {"role": "system", "content": system},
@@ -50,6 +45,20 @@ def parse_tool_plan(text: str) -> dict | None:
         return json.loads(text[start:end])
     except (ValueError, json.JSONDecodeError):
         pass
+    brace_depth = 0
+    start_idx = -1
+    for i, ch in enumerate(text):
+        if ch == '{':
+            if brace_depth == 0:
+                start_idx = i
+            brace_depth += 1
+        elif ch == '}':
+            brace_depth -= 1
+            if brace_depth == 0 and start_idx >= 0:
+                try:
+                    return json.loads(text[start_idx:i+1])
+                except json.JSONDecodeError:
+                    start_idx = -1
     return None
 
 async def generate_tool_code(plan: dict, model: str) -> AsyncIterator[str]:

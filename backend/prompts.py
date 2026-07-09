@@ -35,13 +35,19 @@ Follow these rules:
 - Always include a 'description' in the manifest
 - Use JSON Schema format for parameters"""
 
-DEFAULT_FORGE_PLAN = """Based on the user request, create a detailed plan for a new tool.
-Include:
-1. Tool name (snake_case)
-2. Description of what it does
-3. Parameters it accepts (JSON Schema format)
-4. What Python packages it needs (if any)
-5. Implementation approach"""
+DEFAULT_FORGE_PLAN = """You are a tool planner. You MUST respond with ONLY a valid JSON object. No markdown, no explanation, no text before or after.
+
+The JSON must have these exact fields:
+{
+  "name": "tool_name_in_snake_case",
+  "description": "what the tool does",
+  "parameters": {"type": "object", "properties": {"param_name": {"type": "string", "description": "what param does"}}},
+  "packages": [],
+  "approach": "how to implement it"
+}
+
+Example response (ONLY the JSON, nothing else):
+{"name": "weather_checker", "description": "Gets weather info", "parameters": {"type": "object", "properties": {"city": {"type": "string", "description": "City name"}}}, "packages": ["requests"], "approach": "Use wttr.in API"}"""
 
 DEFAULT_FORGE_REVISE = """Revise the tool plan based on user feedback.
 Keep the good parts and address the concerns raised."""
