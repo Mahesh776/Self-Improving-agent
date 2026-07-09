@@ -5,6 +5,7 @@ import ToolPlanCard from './ToolPlanCard';
 import BuildProgress from './BuildProgress';
 import WelcomeScreen from './WelcomeScreen';
 import MarkdownRenderer from './MarkdownRenderer';
+import VoiceChat from './VoiceChat';
 import type { ChatMessage } from '../api/client';
 
 export default function ChatArea() {
@@ -22,6 +23,7 @@ export default function ChatArea() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; msgIdx: number } | null>(null);
+  const [voiceChatOpen, setVoiceChatOpen] = useState(false);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -192,11 +194,20 @@ export default function ChatArea() {
           >
             Forge New Skill
           </button>
+          <button
+            className="btn voice-btn-trigger"
+            onClick={() => setVoiceChatOpen(true)}
+            title="Voice Chat"
+          >
+            Voice
+          </button>
           <span className="composer-hint">
             Shift+Enter for newline | Ctrl+, for settings
           </span>
         </div>
       </div>
+
+      {voiceChatOpen && <VoiceChat onClose={() => setVoiceChatOpen(false)} />}
     </div>
   );
 }
