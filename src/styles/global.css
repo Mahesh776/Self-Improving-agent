@@ -482,3 +482,5 @@ button { cursor: pointer; font-family: inherit; }
   font-size: 12px; font-weight: 600; transition: all 0.2s;
 }
 .voice-btn-trigger:hover { background: rgba(108, 92, 231, 0.3); }
+.mic-active { background: rgba(46, 204, 113, 0.3) !important; border-color: var(--success) !important; color: var(--success) !important; animation: micPulse 1.5s infinite; }
+@keyframes micPulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(46, 204, 113, 0.4); } 50% { box-shadow: 0 0 0 8px rgba(46, 204, 113, 0); } }
