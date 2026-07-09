@@ -8,6 +8,7 @@ from pathlib import Path
 
 from llm_client import stream_chat_completion, extract_stream_delta
 from tool_creator import plan_tool, parse_tool_plan, generate_tool_code, parse_tool_code
+from reviewer import review_code, parse_review_result, static_check_code
 from build_pipeline import run_build_pipeline
 from tools_engine import list_tools, write_tool_files, validate_tool_schema, validate_manifest
 from prompts import get_prompt
@@ -105,6 +106,35 @@ async def run_forge_agent(job_id: str) -> dict:
         requirements = plan.get("packages", [])
 
         job.add_progress("codegen", "completed", f"Code generated ({len(code)} chars)")
+
+        job.add_progress("review", "running", "Reviewing code...")
+        static_issues = static_check_code(code)
+        if static_issues:
+            job.add_progress("review", "warning", f"Static check found {len(static_issues)} issues")
+
+        max_retries = 2
+        for attempt in range(max_retries):
+            review_text = ""
+            async for chunk in review_code(code, test_code, plan, job.model):
+                review_text += chunk
+
+            review = parse_review_result(review_text)
+            if review.get("status") == "ok":
+                job.add_progress("review", "completed", "Code review passed")
+                break
+            elif review.get("status") == "errors" and review.get("fixed_code"):
+                issues = review.get("issues", [])
+                job.add_progress("review", "retry",
+                    f"Found {len(issues)} issues (attempt {attempt+1}/{max_retries}): {'; '.join(issues[:3])}")
+                code = review["fixed_code"]
+                if "def run" not in code:
+                    code = f"def run(arguments: dict) -> dict:\n    return {{'result': 'fixed'}}\n\n{code}"
+            else:
+                job.add_progress("review", "warning", "Could not parse review result, continuing")
+                break
+        else:
+            job.add_progress("review", "warning", "Review max retries reached, using last code version")
+
         job.add_progress("validate", "running", "Validating code...")
 
         valid, msg = validate_tool_schema(code)

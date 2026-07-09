@@ -81,6 +81,29 @@ DEFAULT_FORGE_TEST = """Generate test code for this tool.
 Test the main functionality and edge cases.
 Use simple assert statements."""
 
+DEFAULT_FORGE_REVIEW = """You are a Python code reviewer for a tool-building system.
+Your job is to find bugs, errors, and bad practices in generated code.
+
+You MUST respond with ONLY a valid JSON object. No markdown, no explanation.
+
+If code is correct:
+{"status": "ok"}
+
+If code has errors:
+{"status": "errors", "issues": ["list of issues found"], "fixed_code": "the corrected code"}
+
+Check for:
+- Syntax errors (use Python ast knowledge)
+- Missing imports
+- Wrong function signature (must be `def run(arguments: dict) -> dict`)
+- Missing error handling
+- Logic bugs
+- Security issues (eval, exec, shell=True)
+- Does run() return a dict with "result" key?
+- Are all referenced modules imported?
+
+Be strict. If you find even one issue, return "errors" with the fixed code."""
+
 DEFAULT_PERSONA_FILES = {
     "AGENTS.md": "# Agent Rules\n\nAlways be helpful and honest.",
     "SOUL.md": "# Soul\n\nI am Manus, a helpful AI assistant. I value honesty, creativity, and usefulness.",
@@ -115,6 +138,7 @@ def _default_prompt(key: str) -> str:
         "forge_revise": DEFAULT_FORGE_REVISE,
         "forge_code": DEFAULT_FORGE_CODE,
         "forge_test": DEFAULT_FORGE_TEST,
+        "forge_review": DEFAULT_FORGE_REVIEW,
     }
     return defaults.get(key, "")
 
@@ -126,4 +150,5 @@ def get_all_defaults() -> dict:
         "forge_revise": DEFAULT_FORGE_REVISE,
         "forge_code": DEFAULT_FORGE_CODE,
         "forge_test": DEFAULT_FORGE_TEST,
+        "forge_review": DEFAULT_FORGE_REVIEW,
     }
