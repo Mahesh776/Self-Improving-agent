@@ -34,7 +34,7 @@ interface ChatState {
 export const useStore = create<ChatState>((set, get) => ({
   messages: [],
   isStreaming: false,
-  currentModel: 'openai/gpt-4o-mini',
+  currentModel: 'zen/deepseek-v4-flash-free',
   availableModels: [],
   tools: [],
   progress: null,
