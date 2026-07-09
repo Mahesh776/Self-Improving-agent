@@ -153,3 +153,74 @@ def validate_manifest(manifest: dict) -> tuple[bool, str]:
     if not manifest.get("description"):
         return False, "Manifest missing 'description'"
     return True, "OK"
+
+async def fix_tool(name: str, error: str, model: str) -> tuple[bool, str]:
+    from llm_client import stream_chat_completion, extract_stream_delta
+    from prompts import get_prompt
+
+    tool_path = TOOLS_DIR / f"{name}.py"
+    if not tool_path.exists():
+        return False, f"Tool '{name}' not found"
+
+    code = tool_path.read_text(encoding="utf-8")
+    manifest = read_manifest(name) or {}
+    system = get_prompt("forge_fix")
+    user_msg = f"""This tool has an error when executed. Fix the code.
+
+Tool name: {name}
+Description: {manifest.get('description', '')}
+
+ERROR:
+{error}
+
+CURRENT CODE:
+```python
+{code}
+```
+
+Fix the code and return ONLY the corrected Python code in a ```python block.
+Keep the same run(arguments: dict) -> dict signature.
+Return ONLY the fixed code, no explanation."""
+
+    messages = [
+        {"role": "system", "content": system},
+        {"role": "user", "content": user_msg},
+    ]
+
+    full_response = ""
+    async for chunk in stream_chat_completion(model, messages, temperature=0.2):
+        delta = extract_stream_delta(chunk)
+        if delta["content"]:
+            full_response += delta["content"]
+        if delta.get("finish_reason") == "error":
+            return False, f"LLM error: {delta['content']}"
+
+    fixed_code = _extract_fixed_code(full_response)
+    if not fixed_code:
+        return False, "Could not extract fixed code from response"
+
+    if "def run" not in fixed_code:
+        return False, "Fixed code missing run() function"
+
+    try:
+        import ast
+        ast.parse(fixed_code)
+    except SyntaxError as e:
+        return False, f"Fixed code has syntax error: {e}"
+
+    tool_path.write_text(fixed_code, encoding="utf-8")
+    return True, f"Tool '{name}' fixed successfully"
+
+def _extract_fixed_code(response: str) -> str | None:
+    import re
+    code_blocks = []
+    for m in re.finditer(r'```(?:python|py)?\s*\n(.*?)```', response, re.DOTALL):
+        block = m.group(1).strip()
+        if block:
+            code_blocks.append(block)
+    for block in code_blocks:
+        if 'def run' in block:
+            return block
+    if code_blocks:
+        return code_blocks[0]
+    return None

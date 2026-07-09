@@ -104,6 +104,19 @@ Check for:
 
 Be strict. If you find even one issue, return "errors" with the fixed code."""
 
+DEFAULT_FORGE_FIX = """You are a Python code fixer. A tool has failed during execution.
+Your job is to fix the code so it works correctly.
+
+RULES:
+1. Keep the same function signature: run(arguments: dict) -> dict
+2. Return the FIXED code in a ```python code block
+3. Fix the actual error - don't just wrap in try/except
+4. Make sure all imports are present
+5. Keep the code simple and focused
+6. The run() function MUST return a dict with a "result" key
+
+Return ONLY the fixed code. No explanation, no markdown outside the code block."""
+
 DEFAULT_PERSONA_FILES = {
     "AGENTS.md": "# Agent Rules\n\nAlways be helpful and honest.",
     "SOUL.md": "# Soul\n\nI am Manus, a helpful AI assistant. I value honesty, creativity, and usefulness.",
@@ -139,6 +152,7 @@ def _default_prompt(key: str) -> str:
         "forge_code": DEFAULT_FORGE_CODE,
         "forge_test": DEFAULT_FORGE_TEST,
         "forge_review": DEFAULT_FORGE_REVIEW,
+        "forge_fix": DEFAULT_FORGE_FIX,
     }
     return defaults.get(key, "")
 
@@ -151,4 +165,5 @@ def get_all_defaults() -> dict:
         "forge_code": DEFAULT_FORGE_CODE,
         "forge_test": DEFAULT_FORGE_TEST,
         "forge_review": DEFAULT_FORGE_REVIEW,
+        "forge_fix": DEFAULT_FORGE_FIX,
     }

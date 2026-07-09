@@ -28,6 +28,7 @@ from tools_engine import (
     validate_manifest,
     read_skill_data,
     write_skill_data,
+    fix_tool,
 )
 from tool_creator import (
     plan_tool,
@@ -371,7 +372,18 @@ async def chat(request: Request):
                     try:
                         result = execute_tool(func_name, args)
                     except Exception as e:
-                        result = {"error": str(e)}
+                        error_msg = str(e)
+                        yield f"data: {json.dumps({'type': 'tool_start', 'tool': func_name, 'arguments': args, 'phase': 'auto_fix'})}\n\n"
+                        fixed, fix_msg = await fix_tool(func_name, error_msg, model)
+                        if fixed:
+                            try:
+                                result = execute_tool(func_name, args)
+                                result["_auto_fixed"] = True
+                                result["_fix_message"] = fix_msg
+                            except Exception as e2:
+                                result = {"error": f"Auto-fix failed: {str(e2)}", "original_error": error_msg}
+                        else:
+                            result = {"error": error_msg, "fix_attempted": True, "fix_error": fix_msg}
 
                 result_str = json.dumps(result)
                 yield f"data: {json.dumps({'type': 'tool_result', 'tool': func_name, 'result': result})}\n\n"
