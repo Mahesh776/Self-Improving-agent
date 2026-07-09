@@ -1,13 +1,16 @@
 import { useEffect } from 'react';
 import { useStore } from './state/store';
-import { getModels, getTools, getProgress, getConfig } from './api/client';
+import { getModels, getTools, getProgress } from './api/client';
+import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
+import { ToastProvider } from './components/Toast';
 import Header from './components/Header';
 import Sidebar from './components/Sidebar';
 import ChatArea from './components/ChatArea';
 import SettingsModal from './components/SettingsModal';
 
-export default function App() {
+function AppContent() {
   const { setModels, setTools, setProgress, setModel, settingsOpen } = useStore();
+  useKeyboardShortcuts();
 
   useEffect(() => {
     async function init() {
@@ -39,5 +42,13 @@ export default function App() {
       </div>
       {settingsOpen && <SettingsModal />}
     </div>
+  );
+}
+
+export default function App() {
+  return (
+    <ToastProvider>
+      <AppContent />
+    </ToastProvider>
   );
 }

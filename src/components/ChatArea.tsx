@@ -1,184 +1,166 @@
 import { useState, useRef, useEffect } from 'react';
 import { useStore } from '../state/store';
-import { streamChat, streamProposeTool, streamApproveTool, type ChatMessage, type Plan } from '../api/client';
+import { useChatStream, useForgeStream } from '../hooks/useStreams';
 import ToolPlanCard from './ToolPlanCard';
 import BuildProgress from './BuildProgress';
+import WelcomeScreen from './WelcomeScreen';
+import Avatar from './Avatar';
+import MarkdownRenderer from './MarkdownRenderer';
+import type { ChatMessage } from '../api/client';
 
 export default function ChatArea() {
   const {
     messages, isStreaming, currentModel, tools,
-    addMessage, updateLastAssistant, setStreaming,
     selectedToolPlan, setSelectedToolPlan,
-    buildPhase, setBuildPhase,
+    buildPhase, buildStatus,
     setTools, setProgress,
   } = useStore();
+
+  const { sendMessage, stopStreaming } = useChatStream();
+  const { proposeTool, approveTool, rejectTool } = useForgeStream();
 
   const [input, setInput] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; msgIdx: number } | null>(null);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+  }, [messages, selectedToolPlan, buildPhase]);
 
-  const sendMessage = () => {
+  const handleSend = () => {
     const text = input.trim();
     if (!text || isStreaming) return;
-
-    const userMsg: ChatMessage = { role: 'user', content: text };
-    addMessage(userMsg);
     setInput('');
-    setStreaming(true);
+    sendMessage(text);
+  };
 
-    const assistantMsg: ChatMessage = { role: 'assistant', content: '' };
-    addMessage(assistantMsg);
+  const handleForge = () => {
+    const text = input.trim();
+    if (!text || isStreaming) return;
+    setInput('');
+    proposeTool(text);
+  };
 
-    const allMessages = [...messages, userMsg];
+  const handleApprove = () => {
+    if (!selectedToolPlan) return;
+    approveTool(selectedToolPlan.planId);
+  };
 
-    streamChat(
-      allMessages,
-      currentModel,
-      (content) => updateLastAssistant(content),
-      (toolCalls) => {
-        for (const tc of tool_calls) {
-          const name = tc.function.name;
-          const args = tc.function.arguments;
-          const toolMsg: ChatMessage = {
-            role: 'assistant',
-            content: `Calling tool: ${name}\nArgs: ${args}`,
-            tool_calls: [tc],
-          };
-          addMessage(toolMsg);
-        }
-      },
-      (tool, result) => {
-        const resultMsg: ChatMessage = {
-          role: 'tool',
-          content: `Tool result (${tool}): ${JSON.stringify(result, null, 2)}`,
-        };
-        addMessage(resultMsg);
-      },
-      () => {
-        setStreaming(false);
-      },
-      (err) => {
-        updateLastAssistant(`\n\nError: ${err}`);
-        setStreaming(false);
-      },
-    );
+  const handleContextMenu = (e: React.MouseEvent, msgIdx: number) => {
+    e.preventDefault();
+    setContextMenu({ x: e.clientX, y: e.clientY, msgIdx });
+  };
+
+  const handleCopyMessage = (msgIdx: number) => {
+    const msg = messages[msgIdx];
+    if (msg) {
+      navigator.clipboard.writeText(msg.content);
+      setContextMenu(null);
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      sendMessage();
+      handleSend();
     }
   };
 
-  const proposeNewTool = () => {
-    const text = input.trim();
-    if (!text || isStreaming) return;
+  useEffect(() => {
+    const close = () => setContextMenu(null);
+    window.addEventListener('click', close);
+    return () => window.removeEventListener('click', close);
+  }, []);
 
-    addMessage({ role: 'user', content: text });
-    setInput('');
-    setStreaming(true);
+  const renderMessage = (msg: ChatMessage, idx: number) => {
+    if (msg.tool_calls && msg.tool_calls.length > 0) {
+      return (
+        <div key={idx} className="message tool-call" onContextMenu={(e) => handleContextMenu(e, idx)}>
+          <div className="message-label">Tool Call</div>
+          {msg.tool_calls.map((tc, i) => (
+            <div key={i}>
+              <div style={{ color: 'var(--accent)', fontWeight: 600, marginBottom: '4px' }}>
+                {tc.function.name}
+              </div>
+              <div className="code-block" style={{ marginTop: '4px' }}>
+                <pre className="code-block-pre">
+                  <code>{(() => { try { return JSON.stringify(JSON.parse(tc.function.arguments), null, 2); } catch { return tc.function.arguments; } })()}</code>
+                </pre>
+              </div>
+            </div>
+          ))}
+        </div>
+      );
+    }
 
-    const assistantMsg: ChatMessage = { role: 'assistant', content: 'Creating a plan for your new tool...' };
-    addMessage(assistantMsg);
+    if (msg.role === 'tool') {
+      return (
+        <div key={idx} className="message tool-result" onContextMenu={(e) => handleContextMenu(e, idx)}>
+          <div className="message-label">Tool Result</div>
+          <div className="code-block">
+            <pre className="code-block-pre">
+              <code>{msg.content}</code>
+            </pre>
+          </div>
+        </div>
+      );
+    }
 
-    let planText = '';
-    streamProposeTool(
-      text,
-      currentModel,
-      (chunk) => {
-        planText += chunk;
-        updateLastAssistant(`Creating a plan for your new tool...\n\n${planText}`);
-      },
-      (planId, plan) => {
-        setSelectedToolPlan({ planId, plan });
-        updateLastAssistant('Here is the plan for your new tool. Review and approve below.');
-        setStreaming(false);
-      },
-      (err) => {
-        updateLastAssistant(`\n\nError creating plan: ${err}`);
-        setStreaming(false);
-      },
+    return (
+      <div
+        key={idx}
+        className={`message ${msg.role}`}
+        onContextMenu={(e) => handleContextMenu(e, idx)}
+      >
+        <div className="message-label">
+          {msg.role === 'user' ? 'You' : 'Manus'}
+          {isStreaming && idx === messages.length - 1 && msg.role === 'assistant' && (
+            <span className="typing-indicator">
+              <span className="dot" /><span className="dot" /><span className="dot" />
+            </span>
+          )}
+        </div>
+        <div className="message-content">
+          {msg.role === 'assistant' ? (
+            <MarkdownRenderer content={msg.content} />
+          ) : (
+            msg.content
+          )}
+        </div>
+      </div>
     );
-  };
-
-  const approvePlan = () => {
-    if (!selectedToolPlan) return;
-    setStreaming(true);
-    setSelectedToolPlan(null);
-
-    streamApproveTool(
-      selectedToolPlan.planId,
-      currentModel,
-      (phase, status, message) => {
-        setBuildPhase(phase, status);
-        if (status === 'completed') {
-          updateLastAssistant(`Build phase "${phase}" completed.`);
-        }
-      },
-      (toolName) => {
-        updateLastAssistant(`Skill "${toolName}" installed successfully!`);
-        getTools().then((res) => setTools(res.tools));
-        getProgress().then((p) => setProgress(p));
-      },
-      (err) => {
-        updateLastAssistant(`\n\nBuild failed: ${err}`);
-      },
-      (success) => {
-        setStreaming(false);
-        setBuildPhase(null, null);
-      },
-    );
-  };
-
-  const rejectPlan = () => {
-    setSelectedToolPlan(null);
   };
 
   return (
     <div className="chat-area">
       <div className="messages">
         {messages.length === 0 && !isStreaming ? (
-          <div className="welcome-screen">
-            <h1>ManusAgent</h1>
-            <p>
-              Your local AI assistant. Ask me anything, or request a new skill
-              to be forged.
-            </p>
-            <p style={{ marginTop: '16px', fontSize: '12px', color: 'var(--text-muted)' }}>
-              {tools.length} skills installed | {currentModel}
-            </p>
-          </div>
+          <WelcomeScreen />
         ) : (
-          messages.map((msg, i) => (
-            <div key={i} className={`message ${msg.role}`}>
-              <div className="message-label">
-                {msg.role === 'user'
-                  ? 'You'
-                  : msg.role === 'tool'
-                  ? 'Tool Result'
-                  : msg.tool_calls
-                  ? 'Tool Call'
-                  : 'Manus'}
-              </div>
-              <div className="message-content">{msg.content}</div>
-            </div>
-          ))
+          messages.map((msg, i) => renderMessage(msg, i))
         )}
         {selectedToolPlan && (
           <ToolPlanCard
-            plan={selectedToolPlan.plan as Plan}
-            onApprove={approvePlan}
-            onReject={rejectPlan}
+            plan={selectedToolPlan.plan as any}
+            onApprove={handleApprove}
+            onReject={rejectTool}
           />
         )}
-        {buildPhase && <BuildProgress phase={buildPhase} status={useStore.getState().buildStatus || 'running'} />}
+        {buildPhase && <BuildProgress phase={buildPhase} status={buildStatus || 'running'} />}
         <div ref={messagesEndRef} />
       </div>
+
+      {contextMenu && (
+        <div
+          className="context-menu"
+          style={{ left: contextMenu.x, top: contextMenu.y }}
+        >
+          <button onClick={() => handleCopyMessage(contextMenu.msgIdx)}>Copy</button>
+          <button onClick={() => setContextMenu(null)}>Delete</button>
+        </div>
+      )}
+
       <div className="composer">
         <div className="composer-inner">
           <textarea
@@ -189,23 +171,31 @@ export default function ChatArea() {
             placeholder="Ask Manus anything..."
             rows={1}
           />
-          <button
-            className="send-btn"
-            onClick={sendMessage}
-            disabled={isStreaming || !input.trim()}
-          >
-            {isStreaming ? '...' : 'Send'}
-          </button>
+          {isStreaming ? (
+            <button className="send-btn stop-btn" onClick={stopStreaming}>
+              Stop
+            </button>
+          ) : (
+            <button
+              className="send-btn"
+              onClick={handleSend}
+              disabled={!input.trim()}
+            >
+              Send
+            </button>
+          )}
         </div>
-        <div style={{ maxWidth: '800px', margin: '8px auto 0', display: 'flex', gap: '8px' }}>
+        <div className="composer-actions">
           <button
-            className="btn"
-            onClick={proposeNewTool}
+            className="btn forge-btn"
+            onClick={handleForge}
             disabled={isStreaming || !input.trim()}
-            style={{ fontSize: '11px', padding: '4px 10px' }}
           >
             Forge New Skill
           </button>
+          <span className="composer-hint">
+            Shift+Enter for newline | Ctrl+, for settings
+          </span>
         </div>
       </div>
     </div>
