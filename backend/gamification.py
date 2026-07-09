@@ -36,13 +36,15 @@ def get_progress() -> dict:
     rank = get_rank(level)
     xp_in_level = xp % XP_PER_LEVEL
     xp_to_next = XP_PER_LEVEL - xp_in_level
+    from tools_engine import list_tools
+    actual_skills = len(list_tools())
     return {
         "xp": xp,
         "level": level,
         "rank": rank,
         "xp_in_level": xp_in_level,
         "xp_to_next": xp_to_next,
-        "skills_unlocked": data.get("skills_unlocked", 0),
+        "skills_unlocked": actual_skills,
         "chat_count": data.get("chat_count", 0),
     }
 

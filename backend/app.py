@@ -58,7 +58,7 @@ from gamification import (
     reset_progress,
 )
 from prompts import get_prompt, load_prompts_config, save_prompts_config, get_all_defaults
-from secrets import apply_secrets_to_environ, secrets_status, set_secret, clear_secret, load_secrets
+from secrets_manager import apply_secrets_to_environ, secrets_status, set_secret, clear_secret, load_secrets
 from chat_history import get_history, add_message, add_messages, clear_history, get_recent_for_context
 
 logging.basicConfig(level=logging.INFO)
