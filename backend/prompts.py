@@ -42,12 +42,12 @@ The JSON must have these exact fields:
   "name": "tool_name_in_snake_case",
   "description": "what the tool does",
   "parameters": {"type": "object", "properties": {"param_name": {"type": "string", "description": "what param does"}}},
-  "packages": [],
+  "packages": ["pip_package_name"],
   "approach": "how to implement it"
 }
 
-Example response (ONLY the JSON, nothing else):
-{"name": "weather_checker", "description": "Gets weather info", "parameters": {"type": "object", "properties": {"city": {"type": "string", "description": "City name"}}}, "packages": ["requests"], "approach": "Use wttr.in API"}"""
+IMPORTANT: List ALL required pip packages in the "packages" array. If no packages needed, use empty array [].
+Example: {"name": "weather_checker", "description": "Gets weather info", "parameters": {"type": "object", "properties": {"city": {"type": "string", "description": "City name"}}}, "packages": ["requests"], "approach": "Use wttr.in API"}"""
 
 DEFAULT_FORGE_REVISE = """Revise the tool plan based on user feedback.
 Keep the good parts and address the concerns raised."""

@@ -54,6 +54,11 @@ async def run_build_pipeline(
     from tools_engine import write_tool_files
     tool_name = manifest.get("name", plan.get("name", "unknown"))
     write_tool_files(tool_name, code, test_code, requirements, manifest)
+
+    if requirements:
+        await on_phase(BuildPhase.INSTALL, "installing_packages", f"Installing packages: {', '.join(requirements)}")
+        _install_requirements(requirements)
+
     result["phases"][BuildPhase.INSTALL] = {"status": "passed", "message": f"Tool '{tool_name}' installed"}
     result["success"] = True
     result["tool_name"] = tool_name
@@ -113,6 +118,18 @@ def _find_venv_python(venv_path: str) -> str:
     if exe.exists():
         return str(exe)
     return "python"
+
+def _install_requirements(requirements: list[str]) -> None:
+    venv_path = os.environ.get("VENV_PATH", str(TOOLS_DIR / ".tool_runtime_venv"))
+    python_exe = _find_venv_python(venv_path)
+    try:
+        subprocess.run(
+            [python_exe, "-m", "pip", "install", "--quiet"] + requirements,
+            capture_output=True, timeout=120,
+        )
+        logger.info(f"Installed packages: {requirements}")
+    except Exception as e:
+        logger.warning(f"Failed to install packages {requirements}: {e}")
 
 def get_pending_pip_installs() -> list[dict]:
     return []
