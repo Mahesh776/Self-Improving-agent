@@ -50,6 +50,9 @@ export function useChatStream() {
       () => {
         setStreaming(false);
         controllerRef.current = null;
+        import('../api/client').then(({ getProgress }) => {
+          getProgress().then((p) => setProgress(p));
+        });
       },
       (err) => {
         updateLastAssistant(`\n\nError: ${err}`);

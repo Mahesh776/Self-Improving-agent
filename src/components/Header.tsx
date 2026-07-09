@@ -8,7 +8,8 @@ export default function Header() {
     isStreaming,
   } = useStore();
 
-  const xpPercent = progress ? (progress.xp_in_level / progress.xp_to_next) * 100 : 0;
+  const XP_PER_LEVEL = 500;
+  const xpPercent = progress ? Math.min((progress.xp_in_level / XP_PER_LEVEL) * 100, 100) : 0;
 
   return (
     <div className="header">
