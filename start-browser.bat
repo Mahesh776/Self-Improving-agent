@@ -1,13 +1,13 @@
 @echo off
 echo ============================================
-echo   ManusAgent - Starting...
+echo   ManusAgent - Starting (Browser Mode)
 echo ============================================
 echo.
 
 REM Check Python
 where python >nul 2>&1
 if errorlevel 1 (
-    echo ERROR: Python not found. Install from https://python.org
+    echo ERROR: Python not found
     pause
     exit /b 1
 )
@@ -15,7 +15,7 @@ if errorlevel 1 (
 REM Check Node
 where node >nul 2>&1
 if errorlevel 1 (
-    echo ERROR: Node.js not found. Install from https://nodejs.org
+    echo ERROR: Node.js not found
     pause
     exit /b 1
 )
@@ -58,28 +58,22 @@ start "ManusAgent-Backend" cmd /c "cd /d backend && ..\.venv\Scripts\python.exe 
 REM Wait for backend
 timeout /t 3 /nobreak >nul
 
-REM Check if electron is available
-if exist "node_modules\electron\dist\electron.exe" (
-    echo Starting Electron desktop app...
-    call npx vite
-    start "" "node_modules\electron\dist\electron.exe" . --dev
-) else (
-    echo.
-    echo Electron not available - opening in browser instead.
-    echo.
-    echo ============================================
-    echo   ManusAgent is running!
-    echo.
-    echo   Open in browser: http://localhost:5173
-    echo   Backend API:     http://localhost:8080
-    echo   Tool Runtime:    http://localhost:8090
-    echo.
-    echo   Press Ctrl+C to stop all services.
-    echo ============================================
-    echo.
-    start http://localhost:5173
-    call npx vite
-)
+REM Start Vite dev server
+echo Starting Frontend on port 5173...
+echo.
+echo ============================================
+echo   ManusAgent is running!
+echo.
+echo   Open in browser: http://localhost:5173
+echo   Backend API:     http://localhost:8080
+echo   Tool Runtime:    http://localhost:8090
+echo.
+echo   Press any key to stop all services...
+echo ============================================
+echo.
+
+REM Start vite in foreground so user can see output
+call npx vite
 
 REM When vite exits, kill the other services
 taskkill /FI "WINDOWTITLE eq ManusAgent-ToolRuntime" /F >nul 2>&1
