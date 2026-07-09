@@ -252,6 +252,7 @@ async def get_models():
     secrets = load_secrets()
     has_openrouter = bool(os.environ.get("OPENROUTER_API_KEY") or secrets.get("OPENROUTER_API_KEY"))
     has_gemini = bool(os.environ.get("GEMINI_API_KEY") or secrets.get("GEMINI_API_KEY"))
+    has_opencode_zen = bool(os.environ.get("OPENCODE_ZEN_API_KEY") or secrets.get("OPENCODE_ZEN_API_KEY"))
 
     if has_openrouter:
         models.extend([
@@ -273,6 +274,14 @@ async def get_models():
         models.extend([
             {"id": "gemini/gemini-2.0-flash", "name": "Gemini 2.0 Flash", "provider": "gemini"},
             {"id": "gemini/gemini-1.5-flash", "name": "Gemini 1.5 Flash", "provider": "gemini"},
+        ])
+    if has_opencode_zen:
+        models.extend([
+            {"id": "zen/deepseek-v4-flash-free", "name": "DeepSeek V4 Flash (Free)", "provider": "opencode_zen"},
+            {"id": "zen/deepseek-v3-0324-free", "name": "DeepSeek V3 (Free)", "provider": "opencode_zen"},
+            {"id": "zen/llama-3.3-70b-free", "name": "Llama 3.3 70B (Free)", "provider": "opencode_zen"},
+            {"id": "zen/gemma-3-27b-it-free", "name": "Gemma 3 27B (Free)", "provider": "opencode_zen"},
+            {"id": "zen/minimax-m2.5", "name": "MiniMax M2.5", "provider": "opencode_zen"},
         ])
     return {"models": models}
 

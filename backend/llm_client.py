@@ -8,6 +8,7 @@ import httpx
 
 OPENROUTER_BASE = "https://openrouter.ai/api/v1"
 GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta"
+OPENCODE_ZEN_BASE = "https://opencode.ai/zen/v1"
 
 SSE_HEADERS = {
     "Cache-Control": "no-cache",
@@ -20,12 +21,20 @@ def get_openrouter_key() -> str:
 def get_gemini_key() -> str:
     return os.environ.get("GEMINI_API_KEY", "")
 
+def get_opencode_zen_key() -> str:
+    return os.environ.get("OPENCODE_ZEN_API_KEY", "")
+
 def is_gemini_model(model: str) -> bool:
     return model.startswith("gemini/")
+
+def is_opencode_zen_model(model: str) -> bool:
+    return model.startswith("zen/")
 
 def resolve_model_provider(model: str) -> str:
     if is_gemini_model(model):
         return "gemini"
+    if is_opencode_zen_model(model):
+        return "opencode_zen"
     return "openrouter"
 
 async def stream_chat_completion(
@@ -39,6 +48,9 @@ async def stream_chat_completion(
     provider = resolve_model_provider(model)
     if provider == "gemini":
         async for chunk in _stream_gemini(model, messages, tools, temperature, max_tokens):
+            yield chunk
+    elif provider == "opencode_zen":
+        async for chunk in _stream_opencode_zen(model, messages, tools, temperature, max_tokens):
             yield chunk
     else:
         async for chunk in _stream_openrouter(model, messages, tools, temperature, max_tokens):
@@ -90,6 +102,60 @@ async def _stream_openrouter(
             if response.status_code != 200:
                 body = await response.aread()
                 yield {"error": f"OpenRouter error {response.status_code}: {body.decode()[:500]}"}
+                return
+            async for line in response.aiter_lines():
+                if not line.startswith("data: "):
+                    continue
+                data_str = line[6:]
+                if data_str.strip() == "[DONE]":
+                    yield {"done": True}
+                    return
+                try:
+                    chunk = json.loads(data_str)
+                    yield chunk
+                except json.JSONDecodeError:
+                    continue
+
+async def _stream_opencode_zen(
+    model: str,
+    messages: list[dict],
+    tools: list[dict] | None,
+    temperature: float,
+    max_tokens: int,
+) -> AsyncIterator[dict]:
+    api_key = get_opencode_zen_key()
+    if not api_key:
+        yield {"error": "OPENCODE_ZEN_API_KEY not set"}
+        return
+
+    zen_model = model.replace("zen/", "")
+
+    payload: dict[str, Any] = {
+        "model": zen_model,
+        "messages": messages,
+        "temperature": temperature,
+        "max_tokens": max_tokens,
+        "stream": True,
+    }
+    if tools:
+        payload["tools"] = tools
+        payload["tool_choice"] = "auto"
+
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+    }
+
+    async with httpx.AsyncClient(timeout=120) as client:
+        async with client.stream(
+            "POST",
+            f"{OPENCODE_ZEN_BASE}/chat/completions",
+            json=payload,
+            headers=headers,
+        ) as response:
+            if response.status_code != 200:
+                body = await response.aread()
+                yield {"error": f"OpenCode Zen error {response.status_code}: {body.decode()[:500]}"}
                 return
             async for line in response.aiter_lines():
                 if not line.startswith("data: "):
