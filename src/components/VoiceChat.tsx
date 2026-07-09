@@ -32,34 +32,11 @@ export default function VoiceChat({ onClose }: VoiceChatProps) {
   const [isProcessing, setIsProcessing] = useState(false);
   const [transcript, setTranscript] = useState('');
   const [response, setResponse] = useState('');
-  const [status, setStatus] = useState('Click mic to start');
+  const [status, setStatus] = useState('Click mic to speak');
   const [supported, setSupported] = useState(true);
-  const [micActive, setMicActive] = useState(false);
 
   const recognitionRef = useRef<any>(null);
   const synthRef = useRef<SpeechSynthesis | null>(null);
-  const micActiveRef = useRef(false);
-
-  const startListening = useCallback(() => {
-    if (!recognitionRef.current) return;
-    setTranscript('');
-    setResponse('');
-    setIsListening(true);
-    setStatus('Listening... speak now');
-    try {
-      recognitionRef.current.start();
-    } catch (e) {
-      recognitionRef.current.stop();
-      setTimeout(() => recognitionRef.current.start(), 100);
-    }
-  }, []);
-
-  const stopListening = useCallback(() => {
-    if (recognitionRef.current) {
-      recognitionRef.current.stop();
-    }
-    setIsListening(false);
-  }, []);
 
   const speak = useCallback((text: string): Promise<void> => {
     return new Promise((resolve) => {
@@ -106,13 +83,8 @@ export default function VoiceChat({ onClose }: VoiceChatProps) {
       await speak(fullResponse);
     }
 
-    if (micActiveRef.current) {
-      setStatus('Listening... speak again');
-      startListening();
-    } else {
-      setStatus('Click mic to start');
-    }
-  }, [messages, currentModel, addMessage, speak, startListening]);
+    setStatus('Click mic to speak');
+  }, [messages, currentModel, addMessage, speak]);
 
   useEffect(() => {
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
@@ -123,7 +95,7 @@ export default function VoiceChat({ onClose }: VoiceChatProps) {
     }
 
     const recognition = new SpeechRecognition();
-    recognition.continuous = true;
+    recognition.continuous = false;
     recognition.interimResults = true;
     recognition.lang = 'en-US';
 
@@ -140,33 +112,25 @@ export default function VoiceChat({ onClose }: VoiceChatProps) {
       }
       setTranscript(finalTranscript || interimTranscript);
       if (finalTranscript) {
-        recognition.stop();
         handleUserSpeech(finalTranscript);
       }
     };
 
     recognition.onerror = (event: any) => {
-      if (event.error === 'no-speech') {
-        if (micActiveRef.current) {
-          setStatus('Listening... speak now');
-          try { recognition.start(); } catch {}
-        }
-        return;
-      }
       if (event.error === 'aborted') return;
       console.error('Speech error:', event.error);
-      if (event.error === 'audio-capture') {
+      setIsListening(false);
+      if (event.error === 'no-speech') {
+        setStatus('No speech detected. Click mic to try again.');
+      } else if (event.error === 'audio-capture') {
         setStatus('No microphone found.');
-        setMicActive(false);
-        micActiveRef.current = false;
+      } else {
+        setStatus('Click mic to speak');
       }
     };
 
     recognition.onend = () => {
       setIsListening(false);
-      if (micActiveRef.current && !isProcessing) {
-        try { recognition.start(); } catch {}
-      }
     };
 
     recognitionRef.current = recognition;
@@ -176,33 +140,30 @@ export default function VoiceChat({ onClose }: VoiceChatProps) {
       recognition.abort();
       synthRef.current?.cancel();
     };
-  }, [handleUserSpeech, isProcessing]);
+  }, [handleUserSpeech]);
 
   const toggleMic = useCallback(() => {
-    if (micActiveRef.current) {
-      micActiveRef.current = false;
-      setMicActive(false);
-      stopListening();
+    if (isListening) {
+      recognitionRef.current?.stop();
+      setIsListening(false);
+      setStatus('Click mic to speak');
+      return;
+    }
+    if (isSpeaking) {
       synthRef.current?.cancel();
       setIsSpeaking(false);
-      setStatus('Mic off');
-    } else {
-      micActiveRef.current = true;
-      setMicActive(true);
-      startListening();
     }
-  }, [startListening, stopListening]);
-
-  const stopSpeaking = useCallback(() => {
-    synthRef.current?.cancel();
-    setIsSpeaking(false);
-    if (micActiveRef.current) {
-      setStatus('Listening... speak now');
-      startListening();
-    } else {
-      setStatus('Click mic to start');
+    setTranscript('');
+    setResponse('');
+    setIsListening(true);
+    setStatus('Listening... speak now');
+    try {
+      recognitionRef.current?.start();
+    } catch (e) {
+      recognitionRef.current?.stop();
+      setTimeout(() => recognitionRef.current?.start(), 100);
     }
-  }, [startListening]);
+  }, [isListening, isSpeaking]);
 
   if (!supported) {
     return (
@@ -246,16 +207,14 @@ export default function VoiceChat({ onClose }: VoiceChatProps) {
 
           <div className="voice-controls">
             <button
-              className={`voice-btn mic-btn ${micActive ? 'mic-active' : ''}`}
+              className={`voice-btn mic-btn ${isListening ? 'mic-active' : ''}`}
               onClick={toggleMic}
-              title={micActive ? 'Turn mic off' : 'Turn mic on'}
+              title="Click to speak"
             >
-              {micActive ? 'ON' : 'MIC'}
+              {isListening ? 'STOP' : 'MIC'}
             </button>
-            {isSpeaking && (
-              <button className="voice-btn stop-btn" onClick={stopSpeaking} title="Mute">
-                MUTE
-              </button>
+            {isProcessing && (
+              <div className="voice-processing">Thinking...</div>
             )}
           </div>
         </div>
