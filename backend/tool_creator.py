@@ -127,32 +127,37 @@ def parse_tool_code(response: str) -> dict | None:
     }
 
 def _extract_code_block(response: str) -> str | None:
-    patterns = [
-        r'```python\s*\n# TOOL CODE\s*\n(.*?)```',
-        r'```python\s*\n# ?(?:tool|main|skill).*?code.*?\n(.*?)```',
-        r'```(?:python|py)\s*\n(.*?)```',
-        r'```\s*\n(.*?)```',
-    ]
-    for pat in patterns:
-        m = re.search(pat, response, re.DOTALL | re.IGNORECASE)
-        if m:
-            code = m.group(1).strip()
-            if 'def run' in code or 'def main' in code:
-                return code
+    code_blocks = []
+    for m in re.finditer(r'```(?:python|py)?\s*\n(.*?)```', response, re.DOTALL):
+        block = m.group(1).strip()
+        if block:
+            code_blocks.append(block)
+    for block in code_blocks:
+        if 'def run' in block:
+            return block
+    for block in code_blocks:
+        if 'def ' in block and ('import' in block or 'return' in block):
+            return block
+    for block in code_blocks:
+        if len(block) > 50 and ('import' in block or 'def ' in block):
+            return block
+    if code_blocks:
+        return code_blocks[0]
     lines = response.split('\n')
     code_lines = []
     in_code = False
     for line in lines:
-        if line.strip().startswith('```') and not in_code:
+        stripped = line.strip()
+        if stripped.startswith('```') and not in_code:
             in_code = True
             continue
-        elif line.strip() == '```' and in_code:
+        elif stripped == '```' and in_code:
             break
         elif in_code:
             code_lines.append(line)
     if code_lines:
         code = '\n'.join(code_lines).strip()
-        if 'def run' in code or 'import' in code:
+        if len(code) > 30:
             return code
     return None
 
