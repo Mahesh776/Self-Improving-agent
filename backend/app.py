@@ -37,6 +37,7 @@ from tool_creator import (
     revise_tool_plan,
 )
 from build_pipeline import run_build_pipeline
+from forge_agent import create_job, get_job, run_forge_agent, list_jobs
 from persona import (
     ensure_persona_layout,
     build_system_instruction,
@@ -108,6 +109,24 @@ CREATE_SKILL_TOOL = {
                 "description": {
                     "type": "string",
                     "description": "Detailed description of what the skill should do, including any constraints (e.g. no API key, free only)"
+                }
+            },
+            "required": ["description"]
+        }
+    }
+}
+
+FORGE_SKILL_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "forge_skill",
+        "description": "Forge a new skill in the background using the Forge Agent. Use this instead of create_skill when the user asks to create/add/forge a skill. Returns a job ID. The agent will plan, generate code, validate, test, and install the skill automatically in the background.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string",
+                    "description": "Detailed description of what the skill should do. Include constraints like 'no API key', 'free only', etc."
                 }
             },
             "required": ["description"]
@@ -192,6 +211,41 @@ async def _handle_create_skill(args: dict, model: str) -> dict:
         logger.exception("create_skill failed")
         return {"error": f"Failed to create skill: {str(e)}"}
 
+
+async def _handle_forge_skill(args: dict, model: str) -> dict:
+    description = args.get("description", "")
+    if not description:
+        return {"error": "No description provided"}
+
+    job_id = create_job(description, model)
+
+    asyncio.create_task(_run_forge_background(job_id))
+
+    return {
+        "job_id": job_id,
+        "status": "queued",
+        "message": f"Forge agent started! Job ID: {job_id}. Check progress at /api/forge/{job_id}/progress",
+    }
+
+
+async def _run_forge_background(job_id: str):
+    try:
+        result = await run_forge_agent(job_id)
+        if result.get("success"):
+            tool_name = result.get("tool_name", "unknown")
+            add_skill_xp()
+            increment_skill_count()
+            tools = list_tools()
+            update_tools_list(tools)
+            update_memory(f"Forge agent installed skill: {tool_name}")
+    except Exception as e:
+        logger.exception(f"Forge background job {job_id} failed")
+        from forge_agent import FORGE_JOBS
+        job = FORGE_JOBS.get(job_id)
+        if job:
+            job.status = "failed"
+            job.result = {"error": str(e)}
+
 @app.get("/api/models")
 async def get_models():
     models = []
@@ -232,6 +286,7 @@ async def chat(request: Request):
     tools = list_tools()
     llm_tools = format_tools_for_llm(tools) if tools else []
     llm_tools.append(CREATE_SKILL_TOOL)
+    llm_tools.append(FORGE_SKILL_TOOL)
 
     system_instruction = build_system_instruction()
     full_messages = [{"role": "system", "content": system_instruction}] + messages
@@ -298,6 +353,8 @@ async def chat(request: Request):
 
                 if func_name == "create_skill":
                     result = await _handle_create_skill(args, model)
+                elif func_name == "forge_skill":
+                    result = await _handle_forge_skill(args, model)
                 elif not tool_exists(func_name):
                     result = {"error": f"Tool '{func_name}' not found"}
                 else:
@@ -498,6 +555,46 @@ async def run_tool(name: str, request: Request):
 @app.get("/api/skills/{name}/data")
 async def get_skill_data(name: str):
     return read_skill_data(name)
+
+@app.get("/api/forge/jobs")
+async def get_forge_jobs():
+    return {"jobs": list_jobs()}
+
+@app.get("/api/forge/{job_id}")
+async def get_forge_job(job_id: str):
+    job = get_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    return job
+
+@app.get("/api/forge/{job_id}/progress")
+async def forge_progress_stream(job_id: str):
+    async def event_stream():
+        import asyncio as _asyncio
+        last_idx = 0
+        while True:
+            job = get_job(job_id)
+            if not job:
+                yield f"data: {json.dumps({'type': 'error', 'message': 'Job not found'})}\n\n"
+                return
+
+            progress = job.get("progress", [])
+            while last_idx < len(progress):
+                event = progress[last_idx]
+                yield f"data: {json.dumps({'type': 'progress', **event})}\n\n"
+                last_idx += 1
+
+            if job.get("status") in ("completed", "failed"):
+                yield f"data: {json.dumps({'type': 'done', 'status': job['status'], 'result': job.get('result')})}\n\n"
+                return
+
+            await _asyncio.sleep(1)
+
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "Connection": "keep-alive"},
+    )
 
 @app.get("/api/persona")
 async def get_persona():

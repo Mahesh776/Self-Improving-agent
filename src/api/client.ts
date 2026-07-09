@@ -283,3 +283,54 @@ export function streamApproveTool(
 
   return controller;
 }
+
+export function streamForgeProgress(
+  jobId: string,
+  onProgress: (phase: string, status: string, message: string) => void,
+  onDone: (status: string, result: unknown) => void,
+  onError: (message: string) => void,
+) {
+  const controller = new AbortController();
+
+  fetch(`${API_BASE}/forge/${jobId}/progress`, {
+    signal: controller.signal,
+  }).then(async (res) => {
+    if (!res.ok) {
+      onError('Failed to connect to forge progress');
+      return;
+    }
+    const reader = res.body?.getReader();
+    if (!reader) return;
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        try {
+          const parsed = JSON.parse(line.slice(6));
+          if (parsed.type === 'progress') onProgress(parsed.phase, parsed.status, parsed.message);
+          else if (parsed.type === 'done') onDone(parsed.status, parsed.result);
+          else if (parsed.type === 'error') onError(parsed.message);
+        } catch {}
+      }
+    }
+  }).catch((err) => {
+    if (err.name !== 'AbortError') onError(err.message);
+  });
+
+  return controller;
+}
+
+export async function getForgeJob(jobId: string) {
+  return fetchJSON(`/forge/${jobId}`);
+}
+
+export async function getForgeJobs() {
+  return fetchJSON('/forge/jobs');
+}

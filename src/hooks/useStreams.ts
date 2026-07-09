@@ -4,6 +4,7 @@ import {
   streamChat,
   streamProposeTool,
   streamApproveTool,
+  streamForgeProgress,
   type ChatMessage,
 } from '../api/client';
 
@@ -11,7 +12,7 @@ export function useChatStream() {
   const {
     messages, currentModel,
     addMessage, updateLastAssistant, setStreaming,
-    setTools, setProgress,
+    setTools, setProgress, setBuildPhase,
   } = useStore();
   const controllerRef = useRef<AbortController | null>(null);
 
@@ -46,6 +47,34 @@ export function useChatStream() {
           content: JSON.stringify(result, null, 2),
           tool_call_id: tool,
         });
+        if (result && typeof result === 'object' && 'job_id' in result) {
+          const jobId = (result as { job_id: string }).job_id;
+          setBuildPhase('forge', 'running');
+          streamForgeProgress(
+            jobId,
+            (phase, status, message) => {
+              setBuildPhase(phase, status);
+              updateLastAssistant(`\n\n🔨 Forge Agent: ${message}`);
+            },
+            (status, res) => {
+              setBuildPhase(null, null);
+              if (status === 'completed' && res && typeof res === 'object' && 'tool_name' in res) {
+                const r = res as { tool_name: string; code: string };
+                updateLastAssistant(`\n\n✅ Skill "${r.tool_name}" forged and installed!\n\nCode:\n\`\`\`python\n${r.code}\n\`\`\``);
+                import('../api/client').then(({ getTools, getProgress }) => {
+                  getTools().then((t) => setTools(t.tools));
+                  getProgress().then((p) => setProgress(p));
+                });
+              } else {
+                updateLastAssistant(`\n\n❌ Forge failed: ${status}`);
+              }
+            },
+            (errMsg) => {
+              setBuildPhase(null, null);
+              updateLastAssistant(`\n\n❌ Forge error: ${errMsg}`);
+            },
+          );
+        }
       },
       () => {
         setStreaming(false);
