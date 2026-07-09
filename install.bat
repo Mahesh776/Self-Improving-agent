@@ -34,6 +34,10 @@ if not exist ".env" (
 
 echo [5/5] Installing Node.js dependencies...
 call npm install
+if errorlevel 1 (
+    echo     Retrying with --legacy-peer-deps...
+    call npm install --legacy-peer-deps
+)
 
 echo.
 echo ============================================

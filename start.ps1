@@ -66,6 +66,10 @@ if ($InstallOnly) {
 Write-Step "Installing Node.js dependencies"
 if (-not (Test-Path "node_modules")) {
     & npm install
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "    Retrying with --legacy-peer-deps..." -ForegroundColor Yellow
+        & npm install --legacy-peer-deps
+    }
 } else {
     Write-Ok "node_modules exists"
 }
