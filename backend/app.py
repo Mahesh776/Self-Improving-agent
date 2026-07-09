@@ -56,10 +56,29 @@ from gamification import (
     reset_progress,
 )
 from prompts import get_prompt, load_prompts_config, save_prompts_config, get_all_defaults
-from secrets import apply_secrets_to_environ, secrets_status, set_secret, clear_secret
+from secrets import apply_secrets_to_environ, secrets_status, set_secret, clear_secret, load_secrets
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+def load_dotenv():
+    env_path = Path(__file__).parent.parent / ".env"
+    if env_path.exists():
+        for line in env_path.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            eq = line.find("=")
+            if eq < 1:
+                continue
+            key = line[:eq].strip()
+            value = line[eq+1:].strip()
+            if (value.startswith('"') and value.endswith('"')) or (value.startswith("'") and value.endswith("'")):
+                value = value[1:-1]
+            if not os.environ.get(key):
+                os.environ[key] = value
+
+load_dotenv()
 
 app = FastAPI(title="ManusAgent Backend")
 
@@ -100,19 +119,24 @@ async def get_config():
 @app.get("/api/models")
 async def get_models():
     models = []
-    if os.environ.get("OPENROUTER_API_KEY"):
+    secrets = load_secrets()
+    has_openrouter = bool(os.environ.get("OPENROUTER_API_KEY") or secrets.get("OPENROUTER_API_KEY"))
+    has_gemini = bool(os.environ.get("GEMINI_API_KEY") or secrets.get("GEMINI_API_KEY"))
+
+    if has_openrouter:
         models.extend([
-            {"id": "openai/gpt-4o", "name": "GPT-4o", "provider": "openrouter"},
-            {"id": "openai/gpt-4o-mini", "name": "GPT-4o Mini", "provider": "openrouter"},
-            {"id": "anthropic/claude-3.5-sonnet", "name": "Claude 3.5 Sonnet", "provider": "openrouter"},
-            {"id": "anthropic/claude-3-haiku", "name": "Claude 3 Haiku", "provider": "openrouter"},
-            {"id": "meta-llama/llama-3.1-70b-instruct", "name": "Llama 3.1 70B", "provider": "openrouter"},
-            {"id": "google/gemini-2.0-flash-001", "name": "Gemini 2.0 Flash", "provider": "openrouter"},
+            {"id": "google/gemini-2.0-flash-exp:free", "name": "Gemini 2.0 Flash (Free)", "provider": "openrouter"},
+            {"id": "google/gemma-3-27b-it:free", "name": "Gemma 3 27B (Free)", "provider": "openrouter"},
+            {"id": "meta-llama/llama-4-maverick:free", "name": "Llama 4 Maverick (Free)", "provider": "openrouter"},
+            {"id": "meta-llama/llama-3.3-70b-instruct:free", "name": "Llama 3.3 70B (Free)", "provider": "openrouter"},
+            {"id": "deepseek/deepseek-chat-v3-0324:free", "name": "DeepSeek V3 (Free)", "provider": "openrouter"},
+            {"id": "microsoft/phi-4-reasoning-plus:free", "name": "Phi-4 Reasoning (Free)", "provider": "openrouter"},
+            {"id": "qwen/qwen3-235b-a22b:free", "name": "Qwen 3 235B (Free)", "provider": "openrouter"},
+            {"id": "openai/gpt-4o-mini", "name": "GPT-4o Mini ($0.15/1M)", "provider": "openrouter"},
         ])
-    if os.environ.get("GEMINI_API_KEY"):
+    if has_gemini:
         models.extend([
             {"id": "gemini/gemini-2.0-flash", "name": "Gemini 2.0 Flash", "provider": "gemini"},
-            {"id": "gemini/gemini-1.5-pro", "name": "Gemini 1.5 Pro", "provider": "gemini"},
             {"id": "gemini/gemini-1.5-flash", "name": "Gemini 1.5 Flash", "provider": "gemini"},
         ])
     return {"models": models}

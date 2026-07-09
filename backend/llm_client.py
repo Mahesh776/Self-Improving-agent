@@ -57,7 +57,9 @@ async def _stream_openrouter(
         return
 
     or_model = model
-    if not or_model.startswith("openai/") and not or_model.startswith("anthropic/") and not or_model.startswith("meta-"):
+    # OpenRouter models keep their full ID (e.g. google/gemini-2.0-flash-exp:free)
+    # Only prefix if it looks like a bare model name without provider
+    if "/" not in or_model:
         or_model = f"openai/{model}"
 
     payload: dict[str, Any] = {
