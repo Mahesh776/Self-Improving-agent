@@ -125,17 +125,19 @@ async def get_models():
 
     if has_openrouter:
         models.extend([
-            {"id": "qwen/qwen3.6-35b-a3b:free", "name": "Qwen 3.6 35B (Free)", "provider": "openrouter"},
-            {"id": "qwen/qwen3.5:free", "name": "Qwen 3.5 (Free)", "provider": "openrouter"},
-            {"id": "google/gemma-3-27b-it:free", "name": "Gemma 3 27B (Free)", "provider": "openrouter"},
-            {"id": "google/gemma-3-12b-it:free", "name": "Gemma 3 12B (Free)", "provider": "openrouter"},
+            {"id": "openrouter/free", "name": "Auto Router (Free)", "provider": "openrouter"},
             {"id": "meta-llama/llama-3.3-70b-instruct:free", "name": "Llama 3.3 70B (Free)", "provider": "openrouter"},
-            {"id": "mistralai/mistral-small-3.1-24b-instruct:free", "name": "Mistral Small 24B (Free)", "provider": "openrouter"},
-            {"id": "moonshotai/kimi-k2:free", "name": "Kimi K2 (Free)", "provider": "openrouter"},
-            {"id": "nvidia/nemotron-3-super-120b-a12b:free", "name": "Nemotron 3 Super (Free)", "provider": "openrouter"},
-            {"id": "deepseek/deepseek-chat-v3-0324:free", "name": "DeepSeek V3 (Free)", "provider": "openrouter"},
-            {"id": "microsoft/phi-4-reasoning-plus:free", "name": "Phi-4 Reasoning (Free)", "provider": "openrouter"},
-            {"id": "openai/gpt-4o-mini", "name": "GPT-4o Mini ($0.15/1M)", "provider": "openrouter"},
+            {"id": "nvidia/nemotron-3-super-120b-a12b:free", "name": "Nemotron 3 Super 120B (Free)", "provider": "openrouter"},
+            {"id": "nvidia/nemotron-3-ultra-550b-a55b:free", "name": "Nemotron 3 Ultra 550B (Free)", "provider": "openrouter"},
+            {"id": "openai/gpt-oss-120b:free", "name": "GPT-OSS 120B (Free)", "provider": "openrouter"},
+            {"id": "qwen/qwen3-coder:free", "name": "Qwen3 Coder (Free)", "provider": "openrouter"},
+            {"id": "qwen/qwen3-next-80b-a3b-instruct:free", "name": "Qwen3 Next 80B (Free)", "provider": "openrouter"},
+            {"id": "google/gemma-4-26b-a4b-it:free", "name": "Gemma 4 26B (Free)", "provider": "openrouter"},
+            {"id": "google/gemma-4-31b-it:free", "name": "Gemma 4 31B (Free)", "provider": "openrouter"},
+            {"id": "poolside/laguna-m.1:free", "name": "Laguna M.1 Coding (Free)", "provider": "openrouter"},
+            {"id": "cohere/north-mini-code:free", "name": "North Mini Code (Free)", "provider": "openrouter"},
+            {"id": "nousresearch/hermes-3-llama-3.1-405b:free", "name": "Hermes 3 405B (Free)", "provider": "openrouter"},
+            {"id": "tencent/hy3:free", "name": "Tencent Hy3 (Free)", "provider": "openrouter"},
         ])
     if has_gemini:
         models.extend([
