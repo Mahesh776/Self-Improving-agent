@@ -41,15 +41,22 @@ if (-not (Test-Path ".venv\Scripts\python.exe")) {
 }
 
 Write-Ok "Installing Python packages"
-& .\.venv\Scripts\pip.exe install -r backend\requirements.txt -q
-& .\.venv\Scripts\pip.exe install -r tool_runtime\requirements.txt -q
+& .\.venv\Scripts\pip.exe install -r backend\requirements.txt -q 2>&1 | Out-Null
+& .\.venv\Scripts\pip.exe install -r tool_runtime\requirements.txt -q 2>&1 | Out-Null
 
 Write-Step "Creating directories"
-New-Item -ItemType Directory -Force -Path "backend\staging" | Out-Null
-New-Item -ItemType Directory -Force -Path "backend\custom_tools" | Out-Null
-New-Item -ItemType Directory -Force -Path "backend\staging\persona" | Out-Null
-New-Item -ItemType Directory -Force -Path "logs" | Out-Null
+@("backend\staging", "backend\custom_tools", "backend\staging\persona", "logs") | ForEach-Object {
+    New-Item -ItemType Directory -Force -Path $_ | Out-Null
+}
 Write-Ok "Directories ready"
+
+Write-Step "Setting up .env"
+if (-not (Test-Path ".env")) {
+    Copy-Item ".env.example" ".env"
+    Write-Ok "Created .env - edit it and add your API keys!"
+} else {
+    Write-Ok ".env already exists"
+}
 
 if ($InstallOnly) {
     Write-Ok "Install complete. Run .\start.ps1 to start."
@@ -59,11 +66,13 @@ if ($InstallOnly) {
 Write-Step "Installing Node.js dependencies"
 if (-not (Test-Path "node_modules")) {
     & npm install
+} else {
+    Write-Ok "node_modules exists"
 }
 
 Write-Step "Starting ManusAgent"
-Write-Ok "Backend will start on http://127.0.0.1:8080"
-Write-Ok "Electron window will open shortly"
+Write-Ok "Backend: http://127.0.0.1:8080"
+Write-Ok "Tool Runtime: http://127.0.0.1:8090"
 Write-Host ""
 
 & npm run electron:dev

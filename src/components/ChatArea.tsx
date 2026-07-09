@@ -4,7 +4,6 @@ import { useChatStream, useForgeStream } from '../hooks/useStreams';
 import ToolPlanCard from './ToolPlanCard';
 import BuildProgress from './BuildProgress';
 import WelcomeScreen from './WelcomeScreen';
-import Avatar from './Avatar';
 import MarkdownRenderer from './MarkdownRenderer';
 import type { ChatMessage } from '../api/client';
 
