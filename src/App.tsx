@@ -24,7 +24,10 @@ function AppContent() {
         setModels(modelsRes.models);
         setTools(toolsRes.tools);
         setProgress(progressRes);
-        if (modelsRes.models.length > 0) {
+        const zenModel = modelsRes.models.find((m: any) => m.id === 'zen/deepseek-v4-flash-free');
+        if (zenModel) {
+          setModel(zenModel.id);
+        } else if (modelsRes.models.length > 0) {
           setModel(modelsRes.models[0].id);
         }
         if (historyRes.messages && historyRes.messages.length > 0) {

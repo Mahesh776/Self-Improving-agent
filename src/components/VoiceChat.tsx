@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useStore } from '../state/store';
 import { streamChat, type ChatMessage } from '../api/client';
 
@@ -27,155 +27,121 @@ function stripEmojis(text: string): string {
 
 export default function VoiceChat({ onClose }: VoiceChatProps) {
   const { messages, currentModel, addMessage } = useStore();
-  const [isListening, setIsListening] = useState(false);
-  const [isSpeaking, setIsSpeaking] = useState(false);
-  const [isProcessing, setIsProcessing] = useState(false);
+  const [state, setState] = useState<'idle' | 'listening' | 'processing' | 'speaking'>('idle');
   const [transcript, setTranscript] = useState('');
   const [response, setResponse] = useState('');
-  const [status, setStatus] = useState('Click mic to speak');
   const [supported, setSupported] = useState(true);
+  const [error, setError] = useState('');
 
-  const recognitionRef = useRef<any>(null);
+  const recogRef = useRef<any>(null);
   const synthRef = useRef<SpeechSynthesis | null>(null);
 
-  const speak = useCallback((text: string): Promise<void> => {
-    return new Promise((resolve) => {
-      if (!synthRef.current) { resolve(); return; }
-      synthRef.current.cancel();
-      const cleaned = stripEmojis(text);
-      if (!cleaned) { resolve(); return; }
-      const utterance = new SpeechSynthesisUtterance(cleaned);
-      utterance.lang = 'en-US';
-      utterance.rate = 1;
-      utterance.onend = () => { setIsSpeaking(false); resolve(); };
-      utterance.onerror = () => { setIsSpeaking(false); resolve(); };
-      setIsSpeaking(true);
-      setStatus('Speaking...');
-      synthRef.current.speak(utterance);
-    });
+  useEffect(() => {
+    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SR) {
+      setSupported(false);
+      return;
+    }
+    const r = new SR();
+    r.continuous = false;
+    r.interimResults = true;
+    r.lang = 'en-US';
+    recogRef.current = r;
+    synthRef.current = window.speechSynthesis;
+    return () => { r.abort(); synthRef.current?.cancel(); };
   }, []);
 
-  const handleUserSpeech = useCallback(async (text: string) => {
-    setIsListening(false);
-    setIsProcessing(true);
-    setStatus('Thinking...');
+  const speak = (text: string): Promise<void> => new Promise((resolve) => {
+    const synth = synthRef.current;
+    if (!synth) { resolve(); return; }
+    synth.cancel();
+    const cleaned = stripEmojis(text);
+    if (!cleaned) { resolve(); return; }
+    const u = new SpeechSynthesisUtterance(cleaned);
+    u.lang = 'en-US';
+    u.rate = 1;
+    u.onend = () => { setState('idle'); resolve(); };
+    u.onerror = () => { setState('idle'); resolve(); };
+    setState('speaking');
+    synth.speak(u);
+  });
 
+  const processSpeech = async (text: string) => {
+    setState('processing');
+    setTranscript(text);
     const userMsg: ChatMessage = { role: 'user', content: text };
     addMessage(userMsg);
-
-    let fullResponse = '';
-    await new Promise<void>((resolve) => {
+    let full = '';
+    await new Promise<void>((res) => {
       streamChat(
-        [...messages, userMsg],
-        currentModel,
-        (content) => { fullResponse += content; setResponse(fullResponse); },
-        () => {},
-        () => {},
-        () => resolve(),
-        () => resolve(),
+        [...messages, userMsg], currentModel,
+        (c) => { full += c; setResponse(full); },
+        () => {}, () => {}, () => res(), () => res(),
       );
     });
-
-    setIsProcessing(false);
-
-    if (fullResponse) {
-      addMessage({ role: 'assistant', content: fullResponse });
-      await speak(fullResponse);
+    if (full) {
+      addMessage({ role: 'assistant', content: full });
+      await speak(full);
+    } else {
+      setState('idle');
     }
+  };
 
-    setStatus('Click mic to speak');
-  }, [messages, currentModel, addMessage, speak]);
-
-  useEffect(() => {
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-      setSupported(false);
-      setStatus('Speech recognition not supported. Use Chrome or Edge.');
-      return;
-    }
-
-    const recognition = new SpeechRecognition();
-    recognition.continuous = false;
-    recognition.interimResults = true;
-    recognition.lang = 'en-US';
-
-    recognition.onresult = (event: any) => {
-      let finalTranscript = '';
-      let interimTranscript = '';
-      for (let i = event.resultIndex; i < event.results.length; i++) {
-        const t = event.results[i][0].transcript;
-        if (event.results[i].isFinal) {
-          finalTranscript += t;
-        } else {
-          interimTranscript += t;
-        }
-      }
-      setTranscript(finalTranscript || interimTranscript);
-      if (finalTranscript) {
-        handleUserSpeech(finalTranscript);
-      }
-    };
-
-    recognition.onerror = (event: any) => {
-      if (event.error === 'aborted') return;
-      console.error('Speech error:', event.error);
-      setIsListening(false);
-      if (event.error === 'no-speech') {
-        setStatus('No speech detected. Click mic to try again.');
-      } else if (event.error === 'audio-capture') {
-        setStatus('No microphone found.');
-      } else {
-        setStatus('Click mic to speak');
-      }
-    };
-
-    recognition.onend = () => {
-      setIsListening(false);
-    };
-
-    recognitionRef.current = recognition;
-    synthRef.current = window.speechSynthesis;
-
-    return () => {
-      recognition.abort();
-      synthRef.current?.cancel();
-    };
-  }, [handleUserSpeech]);
-
-  const toggleMic = useCallback(() => {
-    if (isListening) {
-      recognitionRef.current?.stop();
-      setIsListening(false);
-      setStatus('Click mic to speak');
-      return;
-    }
-    if (isSpeaking) {
-      synthRef.current?.cancel();
-      setIsSpeaking(false);
-    }
+  const startMic = () => {
+    const r = recogRef.current;
+    if (!r) return;
+    setError('');
     setTranscript('');
     setResponse('');
-    setIsListening(true);
-    setStatus('Listening... speak now');
-    try {
-      recognitionRef.current?.start();
-    } catch (e) {
-      recognitionRef.current?.stop();
-      setTimeout(() => recognitionRef.current?.start(), 100);
-    }
-  }, [isListening, isSpeaking]);
+    setState('listening');
+
+    r.onresult = (e: any) => {
+      let final = '';
+      let interim = '';
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        const t = e.results[i][0].transcript;
+        if (e.results[i].isFinal) final += t;
+        else interim += t;
+      }
+      setTranscript(final || interim);
+      if (final) {
+        r.abort();
+        processSpeech(final);
+      }
+    };
+
+    r.onerror = (e: any) => {
+      if (e.error === 'aborted') return;
+      setState('idle');
+      if (e.error === 'no-speech') setError('No speech detected. Try again.');
+      else if (e.error === 'audio-capture') setError('No microphone found.');
+      else if (e.error === 'not-allowed') setError('Microphone blocked. Allow mic in browser.');
+      else setError('Error: ' + e.error);
+    };
+
+    r.onend = () => {
+      if (state === 'listening') setState('idle');
+    };
+
+    try { r.start(); } catch { r.abort(); setTimeout(() => r.start(), 100); }
+  };
+
+  const stopMic = () => {
+    recogRef.current?.abort();
+    setState('idle');
+  };
+
+  const stopSpeaking = () => {
+    synthRef.current?.cancel();
+    setState('idle');
+  };
 
   if (!supported) {
     return (
       <div className="voice-chat-overlay">
         <div className="voice-chat-modal">
-          <div className="voice-chat-header">
-            <span>Voice Chat</span>
-            <button onClick={onClose}>x</button>
-          </div>
-          <div className="voice-chat-body">
-            <p>Speech recognition not supported. Use Chrome or Edge.</p>
-          </div>
+          <div className="voice-chat-header"><span>Voice Chat</span><button onClick={onClose}>x</button></div>
+          <div className="voice-chat-body"><p>Not supported. Use Chrome or Edge.</p></div>
         </div>
       </div>
     );
@@ -184,12 +150,16 @@ export default function VoiceChat({ onClose }: VoiceChatProps) {
   return (
     <div className="voice-chat-overlay">
       <div className="voice-chat-modal">
-        <div className="voice-chat-header">
-          <span>Voice Chat</span>
-          <button onClick={onClose}>x</button>
-        </div>
+        <div className="voice-chat-header"><span>Voice Chat</span><button onClick={onClose}>x</button></div>
         <div className="voice-chat-body">
-          <div className="voice-status">{status}</div>
+          <div className="voice-status">
+            {state === 'idle' && 'Click mic to speak'}
+            {state === 'listening' && 'Listening... speak now'}
+            {state === 'processing' && 'Thinking...'}
+            {state === 'speaking' && 'Speaking...'}
+          </div>
+
+          {error && <div style={{ color: 'var(--error)', fontSize: '13px' }}>{error}</div>}
 
           {transcript && (
             <div className="voice-transcript">
@@ -206,15 +176,17 @@ export default function VoiceChat({ onClose }: VoiceChatProps) {
           )}
 
           <div className="voice-controls">
-            <button
-              className={`voice-btn mic-btn ${isListening ? 'mic-active' : ''}`}
-              onClick={toggleMic}
-              title="Click to speak"
-            >
-              {isListening ? 'STOP' : 'MIC'}
-            </button>
-            {isProcessing && (
+            {state === 'idle' && (
+              <button className="voice-btn mic-btn" onClick={startMic}>MIC</button>
+            )}
+            {state === 'listening' && (
+              <button className="voice-btn stop-btn" onClick={stopMic}>STOP</button>
+            )}
+            {state === 'processing' && (
               <div className="voice-processing">Thinking...</div>
+            )}
+            {state === 'speaking' && (
+              <button className="voice-btn stop-btn" onClick={stopSpeaking}>MUTE</button>
             )}
           </div>
         </div>
