@@ -97,6 +97,24 @@ PENDING_PLANS: dict[str, dict] = {}
 RUN_CANCEL_FLAGS: set[str] = set()
 MAX_TOOL_ITERATIONS = 5
 
+CREATE_SKILL_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "create_skill",
+        "description": "Create and install a new skill/tool. Call this when the user asks to create, add, or forge a new skill/tool/capability. This will generate code, validate it, test it, and install it automatically.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string",
+                    "description": "Detailed description of what the skill should do, including any constraints (e.g. no API key, free only)"
+                }
+            },
+            "required": ["description"]
+        }
+    }
+}
+
 @app.on_event("startup")
 async def startup():
     apply_secrets_to_environ()
@@ -115,6 +133,63 @@ async def get_config():
         "tool_count": len(tools),
         "persona_files": list_persona_files(),
     }
+
+async def _handle_create_skill(args: dict, model: str) -> dict:
+    description = args.get("description", "")
+    if not description:
+        return {"error": "No description provided for the skill"}
+
+    try:
+        existing_tools = list_tools()
+
+        plan_text = ""
+        async for chunk in plan_tool(description, existing_tools, model):
+            plan_text += chunk
+
+        plan = parse_tool_plan(plan_text)
+        if not plan:
+            return {"error": "Could not generate a valid plan for the skill"}
+
+        code_text = ""
+        async for chunk in generate_tool_code(plan, model):
+            code_text += chunk
+
+        parsed = parse_tool_code(code_text)
+        if not parsed:
+            return {"error": "Could not generate valid code for the skill"}
+
+        code = parsed["code"]
+        test_code = parsed["test_code"]
+        manifest = parsed["manifest"]
+        if not manifest.get("name"):
+            manifest["name"] = plan.get("name", "unknown_tool")
+        if not manifest.get("description"):
+            manifest["description"] = plan.get("description", "")
+        requirements = plan.get("packages", [])
+
+        result = await run_build_pipeline(
+            plan, code, test_code, manifest, requirements,
+            lambda phase, status, message: asyncio.sleep(0),
+        )
+
+        if result["success"]:
+            tool_name = result.get("tool_name", manifest.get("name", "unknown"))
+            add_skill_xp()
+            increment_skill_count()
+            tools = list_tools()
+            update_tools_list(tools)
+            update_memory(f"Installed new skill: {tool_name}")
+            return {
+                "result": f"Skill '{tool_name}' created and installed successfully!",
+                "tool_name": tool_name,
+                "description": manifest.get("description", ""),
+            }
+        else:
+            return {"error": f"Build failed: {result.get('error', 'Unknown error')}"}
+
+    except Exception as e:
+        logger.exception("create_skill failed")
+        return {"error": f"Failed to create skill: {str(e)}"}
 
 @app.get("/api/models")
 async def get_models():
@@ -154,7 +229,8 @@ async def chat(request: Request):
     run_id = body.get("run_id", str(uuid.uuid4()))
 
     tools = list_tools()
-    llm_tools = format_tools_for_llm(tools) if tools else None
+    llm_tools = format_tools_for_llm(tools) if tools else []
+    llm_tools.append(CREATE_SKILL_TOOL)
 
     system_instruction = build_system_instruction()
     full_messages = [{"role": "system", "content": system_instruction}] + messages
@@ -219,7 +295,9 @@ async def chat(request: Request):
 
                 yield f"data: {json.dumps({'type': 'tool_start', 'tool': func_name, 'arguments': args})}\n\n"
 
-                if not tool_exists(func_name):
+                if func_name == "create_skill":
+                    result = await _handle_create_skill(args, model)
+                elif not tool_exists(func_name):
                     result = {"error": f"Tool '{func_name}' not found"}
                 else:
                     try:

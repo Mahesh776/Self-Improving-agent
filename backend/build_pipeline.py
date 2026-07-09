@@ -66,8 +66,6 @@ async def _run_sandbox_test(code: str, test_code: str, requirements: list[str]) 
         with tempfile.TemporaryDirectory() as tmpdir:
             tool_path = Path(tmpdir) / "tool.py"
             tool_path.write_text(code, encoding="utf-8")
-            test_path = Path(tmpdir) / "test_tool.py"
-            test_path.write_text(test_code, encoding="utf-8")
 
             if requirements:
                 venv_path = os.environ.get("VENV_PATH", str(TOOLS_DIR / ".tool_runtime_venv"))
@@ -79,6 +77,15 @@ async def _run_sandbox_test(code: str, test_code: str, requirements: list[str]) 
                     )
                 except Exception:
                     pass
+
+            wrapper_code = f"""import sys
+sys.path.insert(0, r"{tmpdir}")
+from tool import run
+
+{test_code}
+"""
+            test_path = Path(tmpdir) / "test_tool.py"
+            test_path.write_text(wrapper_code, encoding="utf-8")
 
             python_exe = _find_venv_python(
                 os.environ.get("VENV_PATH", str(TOOLS_DIR / ".tool_runtime_venv"))

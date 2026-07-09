@@ -131,7 +131,6 @@ def parse_tool_code(response: str) -> dict | None:
 
 def _default_test(code: str) -> str:
     return '''def test_run():
-    from tool import run
     result = run({})
     assert isinstance(result, dict)
     assert "result" in result
