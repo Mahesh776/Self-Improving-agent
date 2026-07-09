@@ -156,7 +156,7 @@ async def _handle_create_skill(args: dict, model: str) -> dict:
 
         parsed = parse_tool_code(code_text)
         if not parsed:
-            return {"error": "Could not generate valid code for the skill"}
+            return {"error": "Could not generate valid code for the skill", "raw_response": code_text[:2000]}
 
         code = parsed["code"]
         test_code = parsed["test_code"]
@@ -183,6 +183,7 @@ async def _handle_create_skill(args: dict, model: str) -> dict:
                 "result": f"Skill '{tool_name}' created and installed successfully!",
                 "tool_name": tool_name,
                 "description": manifest.get("description", ""),
+                "code": code,
             }
         else:
             return {"error": f"Build failed: {result.get('error', 'Unknown error')}"}

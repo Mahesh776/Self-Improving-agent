@@ -104,30 +104,85 @@ Format your response as:
             return
 
 def parse_tool_code(response: str) -> dict | None:
-    code_match = re.search(r'```python\s*\n# TOOL CODE\s*\n(.*?)```', response, re.DOTALL)
-    test_match = re.search(r'```python\s*\n# TEST CODE\s*\n(.*?)```', response, re.DOTALL)
-    manifest_match = re.search(r'```json\s*\n# MANIFEST\s*\n(.*?)```', response, re.DOTALL)
-
-    if not code_match:
-        code_match = re.search(r'```python\s*\n(.*?)```', response, re.DOTALL)
-
-    if not code_match:
+    code = _extract_code_block(response)
+    if not code:
         return None
 
-    code = code_match.group(1).strip()
-    test_code = test_match.group(1).strip() if test_match else _default_test(code)
-    manifest = {}
-    if manifest_match:
-        try:
-            manifest = json.loads(manifest_match.group(1).strip())
-        except json.JSONDecodeError:
-            manifest = {}
+    test_code = _extract_test_block(response) or _default_test(code)
+    manifest = _extract_manifest(response)
 
     return {
         "code": code,
         "test_code": test_code,
         "manifest": manifest,
     }
+
+def _extract_code_block(response: str) -> str | None:
+    patterns = [
+        r'```python\s*\n# TOOL CODE\s*\n(.*?)```',
+        r'```python\s*\n# ?(?:tool|main|skill).*?code.*?\n(.*?)```',
+        r'```(?:python|py)\s*\n(.*?)```',
+        r'```\s*\n(.*?)```',
+    ]
+    for pat in patterns:
+        m = re.search(pat, response, re.DOTALL | re.IGNORECASE)
+        if m:
+            code = m.group(1).strip()
+            if 'def run' in code or 'def main' in code:
+                return code
+    lines = response.split('\n')
+    code_lines = []
+    in_code = False
+    for line in lines:
+        if line.strip().startswith('```') and not in_code:
+            in_code = True
+            continue
+        elif line.strip() == '```' and in_code:
+            break
+        elif in_code:
+            code_lines.append(line)
+    if code_lines:
+        code = '\n'.join(code_lines).strip()
+        if 'def run' in code or 'import' in code:
+            return code
+    return None
+
+def _extract_test_block(response: str) -> str | None:
+    patterns = [
+        r'```python\s*\n# TEST CODE\s*\n(.*?)```',
+        r'```python\s*\n# ?test.*?\n(.*?)```',
+    ]
+    for pat in patterns:
+        m = re.search(pat, response, re.DOTALL | re.IGNORECASE)
+        if m:
+            return m.group(1).strip()
+    return None
+
+def _extract_manifest(response: str) -> dict:
+    patterns = [
+        r'```json\s*\n# MANIFEST\s*\n(.*?)```',
+        r'```json\s*\n(.*?)```',
+    ]
+    for pat in patterns:
+        m = re.search(pat, response, re.DOTALL)
+        if m:
+            try:
+                data = json.loads(m.group(1).strip())
+                if isinstance(data, dict) and (data.get("name") or data.get("description")):
+                    return data
+            except json.JSONDecodeError:
+                pass
+    try:
+        start = response.index('{')
+        depth = 0
+        for i in range(start, len(response)):
+            if response[i] == '{': depth += 1
+            elif response[i] == '}': depth -= 1
+            if depth == 0:
+                return json.loads(response[start:i+1])
+    except (ValueError, json.JSONDecodeError):
+        pass
+    return {}
 
 def _default_test(code: str) -> str:
     return '''def test_run():

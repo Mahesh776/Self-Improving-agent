@@ -41,10 +41,39 @@ Include:
 DEFAULT_FORGE_REVISE = """Revise the tool plan based on user feedback.
 Keep the good parts and address the concerns raised."""
 
-DEFAULT_FORGE_CODE = """Generate the complete Python code for this tool.
-The module must have a `run(arguments: dict) -> dict` function.
-Return the code wrapped in ```python code blocks.
-Also include the test code and requirements."""
+DEFAULT_FORGE_CODE = """You are generating Python code for a tool. You MUST return EXACTLY this format:
+
+```python
+# TOOL CODE
+import json
+
+def run(arguments: dict) -> dict:
+    # your code here
+    return {"result": "output"}
+```
+
+```python
+# TEST CODE
+def test_run():
+    result = run({})
+    assert isinstance(result, dict)
+    print("Test passed!")
+
+if __name__ == "__main__":
+    test_run()
+```
+
+```json
+# MANIFEST
+{
+  "name": "tool_name",
+  "description": "what it does",
+  "parameters": {"type": "object", "properties": {}},
+  "kind": "headless"
+}
+```
+
+IMPORTANT: The code MUST have a `run(arguments: dict) -> dict` function. Return EXACTLY 3 code blocks with the markers shown above."""
 
 DEFAULT_FORGE_TEST = """Generate test code for this tool.
 Test the main functionality and edge cases.
