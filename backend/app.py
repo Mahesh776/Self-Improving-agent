@@ -125,13 +125,16 @@ async def get_models():
 
     if has_openrouter:
         models.extend([
-            {"id": "google/gemini-2.0-flash-exp:free", "name": "Gemini 2.0 Flash (Free)", "provider": "openrouter"},
+            {"id": "qwen/qwen3.6-35b-a3b:free", "name": "Qwen 3.6 35B (Free)", "provider": "openrouter"},
+            {"id": "qwen/qwen3.5:free", "name": "Qwen 3.5 (Free)", "provider": "openrouter"},
             {"id": "google/gemma-3-27b-it:free", "name": "Gemma 3 27B (Free)", "provider": "openrouter"},
-            {"id": "meta-llama/llama-4-maverick:free", "name": "Llama 4 Maverick (Free)", "provider": "openrouter"},
+            {"id": "google/gemma-3-12b-it:free", "name": "Gemma 3 12B (Free)", "provider": "openrouter"},
             {"id": "meta-llama/llama-3.3-70b-instruct:free", "name": "Llama 3.3 70B (Free)", "provider": "openrouter"},
+            {"id": "mistralai/mistral-small-3.1-24b-instruct:free", "name": "Mistral Small 24B (Free)", "provider": "openrouter"},
+            {"id": "moonshotai/kimi-k2:free", "name": "Kimi K2 (Free)", "provider": "openrouter"},
+            {"id": "nvidia/nemotron-3-super-120b-a12b:free", "name": "Nemotron 3 Super (Free)", "provider": "openrouter"},
             {"id": "deepseek/deepseek-chat-v3-0324:free", "name": "DeepSeek V3 (Free)", "provider": "openrouter"},
             {"id": "microsoft/phi-4-reasoning-plus:free", "name": "Phi-4 Reasoning (Free)", "provider": "openrouter"},
-            {"id": "qwen/qwen3-235b-a22b:free", "name": "Qwen 3 235B (Free)", "provider": "openrouter"},
             {"id": "openai/gpt-4o-mini", "name": "GPT-4o Mini ($0.15/1M)", "provider": "openrouter"},
         ])
     if has_gemini:
